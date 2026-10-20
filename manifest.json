@@ -1,0 +1,68 @@
+{
+  "manifest_version": 3,
+  "name": "MPG – Tools",
+  "version": "1.13.0",
+  "description": "Ligues de test MPG en un clic : création par championnat, invitations, lancement et mercatos automatiques (prod et dev).",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "*://mpg.football/*",
+    "*://dev.mpg.football/*",
+    "*://api.mpg.football/*",
+    "*://dev.api.mpg.football/*",
+    "https://api.cloudflare.com/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "MPG – Tools"
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "popup/popup.html",
+        "popup/popup.js",
+        "popup/popup.css"
+      ],
+      "matches": [
+        "*://mpg.football/*",
+        "*://dev.mpg.football/*"
+      ]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://mpg.football/*",
+        "*://dev.mpg.football/*"
+      ],
+      "js": [
+        "src/version-capture.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "*://mpg.football/*",
+        "*://dev.mpg.football/*"
+      ],
+      "js": [
+        "src/api.js",
+        "src/squad.js",
+        "src/runner.js",
+        "src/home-button.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
