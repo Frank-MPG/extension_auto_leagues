@@ -48,7 +48,7 @@ Remplace « Réorganiser » du site. Liste toutes tes ligues et tournois (`GET /
 
 ## Bouton sur Mon MPG
 
-Sur la page Mon MPG (`/`), un bouton « Ligues de test » est ajouté à côté de « Filtrer » / « Réorganiser » (clone du bouton du site, avec une bordure arc-en-ciel animée). Au clic, la popup de l'extension s'ouvre juste sous le bouton (iframe ancrée ; au-dessus ou à côté s'il manque de place ; Échap ou clic à côté pour fermer). Sa hauteur est celle de l'onglet Créer sans défilement ; sur Mercato et Ligues, la liste occupe l'espace restant.
+Sur la page Mon MPG (`/`), un bouton « Tools » est ajouté à côté de « Filtrer » / « Réorganiser » (clone du bouton du site, avec une bordure arc-en-ciel animée). Au clic, la popup de l'extension s'ouvre juste sous le bouton (iframe ancrée ; au-dessus ou à côté s'il manque de place ; Échap ou clic à côté pour fermer). Sa hauteur est celle de l'onglet Créer sans défilement ; sur Mercato et Ligues, la liste occupe l'espace restant.
 
 ## Prod et dev
 
@@ -76,5 +76,5 @@ Les joueurs invités, le numéro de ligue et le cache des championnats sont mém
 | `src/squad.js` | Choix des joueurs / enchères d'un tour de mercato (logique pure) |
 | `src/version-capture.js` | (monde MAIN) récupère le header `client-version` de l'app |
 | `src/background.js` | Service worker : génération des logos IA (Cloudflare) |
-| `src/home-button.js` | Bouton « Ligues de test » sur la page Mon MPG |
+| `src/home-button.js` | Bouton « Tools » sur la page Mon MPG |
 | `popup/` | Popup (onglets Créer / Mercato / Ligues) : `popup.html`, `popup.css`, `popup.js` |

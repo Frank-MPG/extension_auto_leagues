@@ -129,7 +129,7 @@
     btn.title = 'Créer des ligues, faire les mercatos';
     btn.style.cursor = 'pointer';
     const label = [...btn.querySelectorAll('div,span')].find(e => e.children.length === 0 && e.textContent.trim());
-    if (label) label.textContent = 'Ligues';
+    if (label) label.textContent = 'Tools';
     const svgRef = chip.querySelector('svg'), svgClone = btn.querySelector('svg');
     if (svgRef && svgClone) svgClone.replaceWith(iconLike(svgRef));
     // L'élément qui porte la bordure « pilule » du site reçoit l'effet arc-en-ciel
