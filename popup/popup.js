@@ -112,26 +112,33 @@ const saveSel = () => chrome.storage.local.set({ normal: [...normal], express: [
 function renderChamps() {
   const box = $('champs'); box.textContent = '';
   for (const c of champs) {
-    const on = normal.has(c.id);
-    const logo = el('button', { type: 'button', className: 'logo', title: `${on ? 'Retirer' : 'Ajouter'} la ligue ${c.short}` });
-    const ph = () => el('div', { className: 'ph', textContent: c.short });
+    const on = normal.has(c.id), xon = express.has(c.id);
+    // Tuile coupée en 2 : en haut la ligue classique (logo + nom), en bas toute la largeur pour l'express
+    const main = el('button', {
+      type: 'button', className: 'main', title: `${on ? 'Retirer' : 'Ajouter'} la ligue ${c.short}`,
+    });
+    main.setAttribute('aria-pressed', String(on));
+    const logo = el('span', { className: 'logo' });
+    const ph = () => el('span', { className: 'ph', textContent: c.short });
     if (c.logo) {
-      const img = el('img', { src: c.logo, alt: c.short });
+      const img = el('img', { src: c.logo, alt: '' });
       img.onerror = () => img.replaceWith(ph());
       logo.append(img);
     } else logo.append(ph());
-    logo.onclick = () => { on ? normal.delete(c.id) : normal.add(c.id); saveSel(); renderChamps(); renderSummary(); };
-
     const check = el('span', { className: 'check' });
     check.innerHTML = '<svg viewBox="0 0 12 12" width="8" height="8"><path d="M2.5 6.2 5 8.5l4.5-5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    main.append(check, logo, el('span', { className: 'name', textContent: c.short }));
+    main.onclick = () => { on ? normal.delete(c.id) : normal.add(c.id); saveSel(); renderChamps(); renderSummary(); };
 
     const xp = el('button', {
-      type: 'button', className: 'xp' + (express.has(c.id) ? ' on' : ''),
-      textContent: '⚡Express', title: `Créer aussi « ${c.short} Express » (matchs aller uniquement)`,
+      type: 'button', className: 'xp',
+      title: `${xon ? 'Ne plus créer' : 'Créer aussi'} « ${c.short} Express » (matchs aller uniquement)`,
     });
-    xp.onclick = () => { express.has(c.id) ? express.delete(c.id) : express.add(c.id); saveSel(); renderChamps(); renderSummary(); };
+    xp.setAttribute('aria-pressed', String(xon));
+    xp.append(el('span', { className: 'bolt', textContent: '⚡' }), 'Express');
+    xp.onclick = () => { xon ? express.delete(c.id) : express.add(c.id); saveSel(); renderChamps(); renderSummary(); };
 
-    box.append(el('div', { className: 'tile' + (on ? ' on' : '') }, check, logo, el('div', { className: 'name', textContent: c.short }), xp));
+    box.append(el('div', { className: 'tile' + (on ? ' on' : '') + (xon ? ' xon' : '') }, main, xp));
   }
 }
 
@@ -142,10 +149,27 @@ const userLabel = u => u.username || u.ident;
 const sameUser = (a, b) => (a.id && b.id && a.id === b.id) || a.ident.toLowerCase() === b.ident.toLowerCase()
   || (!!a.username && a.username.toLowerCase() === b.ident.toLowerCase());
 
+// Compte connecté (ou custom user) : toujours 1er joueur de chaque ligue, non retirable
+let meUser = null; // { id, username } fourni par l'onglet MPG
+const isMe = u => !!(meUser && (u.id === meUser.id
+  || (u.ident && meUser.username && u.ident.toLowerCase() === meUser.username.toLowerCase())));
+// Retire de la liste des invités le compte connecté s'il y figure (il est déjà inclus)
+function dropMe() {
+  const before = users.length;
+  users = users.filter(u => !isMe(u));
+  return users.length !== before;
+}
+
 function renderUsers() {
   const box = $('userChips');
   box.querySelectorAll('.uchip').forEach(n => n.remove());
   const input = $('userInput');
+  const me = el('span', { className: 'uchip me' + (meUser ? '' : ' pending') },
+    el('span', { className: 'uname', textContent: meUser ? (meUser.username || meUser.id) : 'Compte connecté' }),
+    el('span', { className: 'ume', textContent: 'toi' }));
+  me.title = (meUser ? `${meUser.username ? meUser.username + '\n' : ''}${meUser.id}${meUser.custom ? '\nCustom user' : ''}\n` : '')
+    + 'Compte connecté : crée et lance les ligues, toujours inclus';
+  box.insertBefore(me, input);
   users.forEach((u, i) => {
     const label = userLabel(u);
     const x = el('button', { type: 'button', textContent: '×', title: `Retirer ${label}`, ariaLabel: `Retirer ${label}` });
@@ -182,7 +206,8 @@ async function resolveUsers(targets) {
       if (!users.includes(u)) return; // retiré entre-temps
       if (res.ok) {
         Object.assign(u, { id: res.id, username: res.username || '' }); delete u.status;
-        if (users.some(o => o !== u && o.id === u.id)) users.splice(users.indexOf(u), 1); // déjà dans la liste
+        if (isMe(u)) { users.splice(users.indexOf(u), 1); showError('msg', `${userLabel(u)} est le compte connecté : déjà inclus`); }
+        else if (users.some(o => o !== u && o.id === u.id)) users.splice(users.indexOf(u), 1); // déjà dans la liste
       } else if (res.auth) u.status = 'unverified';
       else { missing.push(u.ident); users.splice(users.indexOf(u), 1); }
     });
@@ -197,12 +222,14 @@ async function resolveUsers(targets) {
 
 function addUsers(text) {
   const add = [];
+  let meHit = '';
   for (const ident of text.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean)) {
     const u = { ident };
+    if (isMe(u)) { meHit = ident; continue; }
     if (!users.some(o => sameUser(o, u)) && !add.some(o => sameUser(o, u))) add.push(u);
   }
+  showError('msg', meHit ? `${meHit} est le compte connecté : déjà inclus` : '');
   if (!add.length) return;
-  showError('msg', '');
   users.push(...add); saveUsers();
   resolveUsers(add);
 }
@@ -646,8 +673,14 @@ chrome.storage.local.get(['vView', 'vFilters']).then(r => {
   if (!mpgTab) { setConn(false, 'Ouvre un onglet mpg.football ou dev.mpg.football'); return; }
   try {
     const r = await chrome.tabs.sendMessage(mpgTab.id, { mpgauto: 'championships' });
+    const apiHost = u => { try { return new URL(u).host; } catch { return u; } };
     if (r && r.ok && r.list.length) {
-      setConn(true, `Connecté à ${host}`);
+      const cu = r.customUser;
+      const parts = [r.customApi || cu ? host : `Connecté à ${host}`];
+      if (r.customApi) parts.push(`API custom ${apiHost(r.customApi)}`);
+      if (cu) parts.push(`en tant que ${cu.username || cu.identifier}`);
+      setConn(true, parts.join(' · '));
+      $('conn').title = [r.api && 'API : ' + r.api, cu && `Custom user : ${cu.username ? cu.username + ' – ' : ''}${cu.id}`].filter(Boolean).join('\n');
       const known = new Set(champs.map(c => c.id));
       champs = r.list;
       if (!state.normal) normal = new Set(champs.map(c => c.id));
@@ -656,8 +689,12 @@ chrome.storage.local.get(['vView', 'vFilters']).then(r => {
       renderChamps(); renderSummary(); reportHeight();
       if (mLeagues.length) renderMercato();
       if (vById.size) renderVis();
+      if (r.me) { meUser = r.me; if (dropMe()) saveUsers(); else renderUsers(); }
       resolveUsers(users); // pseudos des joueurs enregistrés sans (ex. anciens userId)
-    } else setConn(false, (r && r.error) || 'Session MPG introuvable');
+    } else {
+      setConn(false, (r && r.error) || 'Session MPG introuvable');
+      if (r && r.api) $('conn').title = 'API : ' + r.api;
+    }
   } catch { setConn(false, 'Recharge l\'onglet MPG'); }
 })();
 

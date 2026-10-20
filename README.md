@@ -7,7 +7,7 @@ Extension Chrome (MV3). Un clic dans le popup :
 3. Accepte les invitations compte par compte avec le header `view-as` (le même mécanisme que « Custom user » / page `/debug`) : `GET /user-notifications` puis `PATCH /user-notification/:id/action/accept`.
 4. Lance chaque ligue depuis le compte principal : `PATCH /league/:id/validate-mono-division` (mercato au prochain créneau de 30 min (hh:00 ou hh:30) ; si l API le refuse, créneau suivant, fermeture auto activée).
 
-Joueurs invités : saisis un **pseudo**, un **email** ou un **userId** (Entrée, virgule ou espace pour valider). Chaque saisie est résolue tout de suite via l'onglet MPG — pseudo : `GET /user/:username` ; email / userId / shortId : `GET /debug/user/ids?identifier=` puis `GET /user/:id` pour le pseudo — et la puce affiche le pseudo (survol : pseudo, userId, saisie). Un joueur introuvable est retiré avec un message ; sans onglet MPG connecté, la puce reste « non vérifiée » et est résolue au lancement. Les anciens userId enregistrés récupèrent leur pseudo à l'ouverture du popup.
+Joueurs invités : le **compte connecté** (ou le custom user) est toujours affiché en premier, marqué « toi », et ne peut pas être retiré (c'est lui qui crée et lance les ligues) ; le saisir parmi les invités est refusé. Pour les autres, saisis un **pseudo**, un **email** ou un **userId** (Entrée, virgule ou espace pour valider). Chaque saisie est résolue tout de suite via l'onglet MPG — pseudo : `GET /user/:username` ; email / userId / shortId : `GET /debug/user/ids?identifier=` puis `GET /user/:id` pour le pseudo — et la puce affiche le pseudo (survol : pseudo, userId, saisie). Un joueur introuvable est retiré avec un message ; sans onglet MPG connecté, la puce reste « non vérifiée » et est résolue au lancement. Les anciens userId enregistrés récupèrent leur pseudo à l'ouverture du popup.
 
 Dans le popup, clique sur le logo d'un championnat pour l'activer / le griser, et sur « ⚡ Express » pour créer aussi sa version express (indépendant : on peut ne créer que l'express). La sélection est mémorisée ; la liste vient de `/championships/active` (via l'onglet MPG ouvert).
 
@@ -59,7 +59,9 @@ L'extension tourne sur **mpg.football** et **dev.mpg.football**. L'environnement
 | `mpg.football` | `https://api.mpg.football` | `com.monpetitgazon.monpetitgazonapp.secureStorage\accessToken` |
 | `dev.mpg.football` | `https://dev.api.mpg.football` | `com.monpetitgazon.monpetitgazondev.secureStorage\accessToken` |
 
-Si une API URL custom est définie (extension « API URL », store `mmkv.default\debug` de l'app), elle est utilisée à la place, comme le fait l'app ; elle est alors indiquée dans le panneau de progression.
+Si une API URL custom est définie (extension « API URL » ou page `/debug`, store `mmkv.default\debug` de l'app), elle est utilisée à la place, relue à chaque appel et normalisée comme le fait l'app (`https://` ajouté si absent), avec le header `ngrok-skip-browser-warning: true` (comme l'app). Le popup l'affiche dans sa ligne de connexion (« API custom … ») et le panneau de progression aussi. Une réponse HTML (page ngrok, mauvaise URL) donne une erreur explicite.
+
+De même, si un **custom user** est appliqué (extension « Custom user » ou page `/debug`, `state.data.identifiers.mpgId`), tous les appels partent avec `view-as: <mpgId>` comme dans l'app : le « compte principal » (création, lancement, mercato « mon compte », onglet Ligues) est alors ce custom user. Les comptes invités gardent leur propre `view-as` ; `/debug/user/ids` part sans `view-as`. Le popup affiche « en tant que … ».
 
 Les joueurs invités, le numéro de ligue et le cache des championnats sont mémorisés **séparément** pour la dev (clés `*_dev`). Joueurs par défaut en dev : `user_12345001` à `user_12345005`. Le popup affiche un badge **DEV** sur dev.mpg.football.
 

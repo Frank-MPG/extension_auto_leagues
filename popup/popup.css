@@ -57,6 +57,9 @@ input { font: inherit; color: inherit; }
 }
 .title { font-weight: 650; font-size: 14px; letter-spacing: -.01em; }
 .sub { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11.5px; }
+.brand > div:last-child { min-width: 0; }
+#connText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dot { flex-shrink: 0; }
 .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
 .sub.ok .dot { background: var(--success); box-shadow: 0 0 0 3px rgba(52, 211, 153, .15); }
 .sub.ko .dot { background: var(--warn); }
@@ -115,13 +118,22 @@ h2 { margin: 0; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-t
 /* ---------- Championnats ---------- */
 .champs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .tile {
-  position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px;
-  min-width: 0; padding: 8px 4px 6px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface-2);
+  position: relative; display: flex; flex-direction: column; min-width: 0; overflow: hidden;
+  border-radius: 9px; border: 1px solid var(--border); background: var(--surface-2);
   transition: border-color .15s, background .15s;
 }
-.tile.on { border-color: rgba(88, 101, 242, .7); background: linear-gradient(180deg, rgba(88, 101, 242, .14), rgba(88, 101, 242, .04)); }
-.tile .logo { width: 40px; height: 40px; padding: 0; border: 0; border-radius: 9px; background: none; cursor: pointer; }
-.tile .logo img, .tile .logo .ph { width: 40px; height: 40px; border-radius: 9px; display: block; transition: filter .2s, opacity .2s; }
+.tile.on { border-color: rgba(88, 101, 242, .7); }
+.tile.xon:not(.on) { border-color: rgba(251, 191, 36, .45); }
+/* Partie haute : ligue classique */
+.tile .main {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; width: 100%; min-width: 0;
+  padding: 8px 4px 6px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; transition: background .15s;
+}
+.tile .main:hover { background: rgba(255, 255, 255, .03); }
+.tile.on .main { background: linear-gradient(180deg, rgba(88, 101, 242, .16), rgba(88, 101, 242, .05)); }
+.tile .main:focus-visible, .tile .xp:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.tile .logo, .tile .logo img, .tile .logo .ph { width: 40px; height: 40px; border-radius: 9px; display: block; }
+.tile .logo img, .tile .logo .ph { transition: filter .2s, opacity .2s; }
 .tile .logo .ph { display: grid; place-items: center; background: var(--surface-3); font-weight: 700; font-size: 11px; }
 .tile:not(.on) .logo img, .tile:not(.on) .logo .ph { filter: grayscale(1); opacity: .32; }
 .tile .name { font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
@@ -131,13 +143,19 @@ h2 { margin: 0; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-t
   display: grid; place-items: center; background: var(--accent); color: #fff; opacity: 0; transform: scale(.6); transition: opacity .15s, transform .15s;
 }
 .tile.on .check { opacity: 1; transform: none; }
-.xp {
-  display: inline-flex; align-items: center; gap: 2px; height: 19px; padding: 0 6px; border-radius: 10px; white-space: nowrap; max-width: 100%; overflow: hidden;
-  border: 1px solid var(--border-strong); background: transparent; color: var(--faint); font-size: 10px; font-weight: 600; cursor: pointer;
-  transition: all .15s;
+/* Partie basse : express, sur toute la largeur */
+.tile .xp {
+  display: flex; align-items: center; justify-content: center; gap: 3px; width: 100%; height: 24px; padding: 0 4px;
+  border: 0; border-top: 1px solid var(--border); border-radius: 0; background: rgba(0, 0, 0, .14);
+  color: var(--faint); font-family: inherit; font-size: 10.5px; font-weight: 600; line-height: 1; white-space: nowrap; overflow: hidden; cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
 }
-.xp:hover { color: var(--text); border-color: var(--muted); }
-.xp.on { background: var(--warn-soft); border-color: rgba(251, 191, 36, .55); color: var(--warn); }
+.tile .xp .bolt { font-size: 10px; filter: grayscale(1); opacity: .6; transition: filter .15s, opacity .15s; }
+.tile .xp:hover { color: var(--text); background: rgba(255, 255, 255, .04); }
+.tile .xp:hover .bolt { opacity: .9; }
+.tile.on .xp { border-top-color: rgba(88, 101, 242, .35); }
+.tile.xon .xp { background: var(--warn-soft); border-top-color: rgba(251, 191, 36, .45); color: var(--warn); }
+.tile.xon .xp .bolt { filter: none; opacity: 1; }
 
 /* ---------- Environnement dev ---------- */
 .env-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 5px; background: var(--warn-soft); color: var(--warn); font-size: 10px; font-weight: 700; letter-spacing: .06em; vertical-align: 2px; }
@@ -157,6 +175,9 @@ h2 { margin: 0; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-t
 .uchip button:hover { background: var(--border-strong); color: var(--text); }
 .uchip .uname { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .uchip.pending { color: var(--muted); }
+.uchip.me { padding-right: 5px; background: var(--accent-soft); color: #c5caff; cursor: default; }
+.uchip.me.pending { color: var(--muted); background: var(--surface-3); }
+.uchip .ume { padding: 0 5px; border-radius: 4px; background: rgba(88, 101, 242, .28); font-size: 10px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
 .uchip.unverified { color: var(--muted); font-style: italic; box-shadow: inset 0 0 0 1px var(--warn-soft); }
 .uspin { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid currentColor; border-right-color: transparent; animation: uspin .7s linear infinite; }
 @keyframes uspin { to { transform: rotate(360deg); } }

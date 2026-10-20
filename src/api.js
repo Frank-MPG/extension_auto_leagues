@@ -11,13 +11,35 @@ const MpgApi = (() => {
   const TOKEN_KEY = `${ENV.pkg}.secureStorage\\accessToken`;
   const FALLBACK_VERSION = '13.7.0';
 
-  function base() {
+  // Store zustand « debug » de l'app (écrit par la page /debug et les extensions « API URL » / « Custom user »),
+  // relu à chaque appel : state.data.url (API URL custom), state.data.identifiers.mpgId (custom user → view-as).
+  function debugData() {
     try {
-      const url = JSON.parse(localStorage.getItem('mmkv.default\\debug'))?.state?.data?.url;
-      if (url && /^https?:\/\//i.test(url)) return url.replace(/\/+$/, '');
-    } catch {}
-    return ENV.api;
+      let o = JSON.parse(localStorage.getItem('mmkv.default\\debug'));
+      if (typeof o === 'string') o = JSON.parse(o); // valeur doublement encodée
+      return o?.state?.data || {};
+    } catch { return {}; }
   }
+  // Même normalisation que l'app (https:// ajouté si absent)
+  function customUrl() {
+    let url = String(debugData().url || '').trim();
+    if (!url) return '';
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    return url.replace(/\/+$/, '');
+  }
+  // Custom user : comme l'app, tous les appels partent avec `view-as: <mpgId>` (sauf view-as explicite)
+  function customUser() {
+    const ids = debugData().identifiers;
+    const id = ids && (ids.mpgId || '');
+    if (!id) return null;
+    let username = '';
+    try { // pseudo capturé par l'extension « Custom user »
+      const v = JSON.parse(localStorage.getItem('mpgcu_viewedUser'));
+      if (v && v.id === id) username = v.username || '';
+    } catch {}
+    return { id, identifier: ids.identifier || id, username };
+  }
+  const base = () => customUrl() || ENV.api;
 
   class ApiError extends Error {
     constructor(status, path, body) {
@@ -32,7 +54,9 @@ const MpgApi = (() => {
     return t;
   }
 
-  async function call(method, path, { body, viewAs } = {}) {
+  // viewAs : compte à incarner (sinon le custom user s'il y en a un) ; noViewAs : appel avec le vrai compte (endpoints /debug)
+  async function call(method, path, { body, viewAs, noViewAs } = {}) {
+    if (!viewAs && !noViewAs) viewAs = customUser()?.id;
     let version = FALLBACK_VERSION;
     try { version = localStorage.getItem('mpgauto_clientVersion') || FALLBACK_VERSION; } catch {}
     const headers = {
@@ -46,20 +70,29 @@ const MpgApi = (() => {
     const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
     if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
     if (viewAs) headers['view-as'] = viewAs;
-    const res = await fetch(base() + path, { method, headers, body: body === undefined ? undefined : isForm ? body : JSON.stringify(body) });
+    const custom = customUrl();
+    // Comme l'app avec une URL custom : évite la page d'avertissement ngrok
+    if (custom) headers['ngrok-skip-browser-warning'] = 'true';
+    const url = (custom || ENV.api) + path;
+    let res;
+    try { res = await fetch(url, { method, headers, body: body === undefined ? undefined : isForm ? body : JSON.stringify(body) }); }
+    catch (e) { throw new ApiError(0, path, `${custom ? 'API custom ' + custom : ENV.api} injoignable (${e.message})`); }
     const text = await res.text();
     if (res.status === 401) throw new ApiError(401, path, 'token expiré : recharge la page MPG et relance');
     if (!res.ok) throw new ApiError(res.status, path, text);
+    if (/^\s*</.test(text)) throw new ApiError(res.status, path, `réponse HTML au lieu de JSON (${custom ? 'API custom ' + custom : ENV.api})`);
     try { return text ? JSON.parse(text) : null; } catch { return text; }
   }
 
   return {
     isDev: IS_DEV,
     apiBase: base,
+    customApiUrl: customUrl,
+    customUser,
     me: () => call('GET', '/user'),
     championships: () => call('GET', '/championships/active'),
     // userId / shortId / email → { mpgId, … }
-    resolveUser: identifier => call('GET', '/debug/user/ids?identifier=' + encodeURIComponent(identifier)),
+    resolveUser: identifier => call('GET', '/debug/user/ids?identifier=' + encodeURIComponent(identifier), { noViewAs: true }),
     // Profil public par userId ou par pseudo (getPublicUser / getUserByUsername du site) → { id, username, … }
     publicUser: idOrUsername => call('GET', '/user/' + encodeURIComponent(idOrUsername)),
     createLeague: (name, championshipId, imageUrl) => call('POST', '/league', {

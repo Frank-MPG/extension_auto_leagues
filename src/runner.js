@@ -211,8 +211,9 @@
       // 1. Contexte
       step('1. Compte principal & joueurs');
       const me = await MpgApi.me();
-      if (MpgApi.isDev || MpgApi.apiBase() !== 'https://api.mpg.football') log(`API : ${MpgApi.apiBase()}`);
-      log(`Compte principal : ${me.username || ''} (${me.id})`);
+      if (MpgApi.isDev || MpgApi.customApiUrl()) log(`API${MpgApi.customApiUrl() ? ' custom' : ''} : ${MpgApi.apiBase()}`);
+      const cu = MpgApi.customUser();
+      log(`Compte principal : ${me.username || ''} (${me.id})${cu ? ' – custom user' : ''}`);
       const users = [];
       // Entrées du popup : { ident, id?, username? } (id déjà résolu) ou chaîne (ancien format)
       for (const u of cfg.users) {
@@ -220,6 +221,7 @@
         try {
           const r = typeof u === 'object' && u.id ? u : await resolveIdent(ident);
           const label = r.username || ident;
+          if (r.id === me.id) { log(`${label} : c'est le compte principal, ignoré`, 'warn'); continue; }
           if (users.some(x => x.id === r.id)) { log(`${label} : en double, ignoré`, 'warn'); continue; }
           users.push({ ident: label, id: r.id });
           log(`${label} → ${r.id}`);
@@ -557,13 +559,16 @@
     }
     // Liste des championnats actifs pour le popup (le token n'est lisible que depuis la page)
     if (msg && msg.mpgauto === 'championships') {
-      MpgApi.championships().then(r => reply({
+      // + compte connecté (custom user le cas échéant), affiché en 1er joueur dans le popup
+      Promise.all([MpgApi.championships(), MpgApi.me().catch(() => null)]).then(([r, me]) => reply({
         ok: true,
+        api: MpgApi.apiBase(), customApi: MpgApi.customApiUrl(), customUser: MpgApi.customUser(),
+        me: me && me.id ? { id: me.id, username: me.username || '', custom: !!MpgApi.customUser() } : null,
         list: Object.entries(r.championships || {}).sort((a, b) => +a[0] - +b[0]).map(([id, c]) => ({
           id: +id, short: c.shortBrand || c.brand || 'C' + id, brand: c.brand || '',
           logo: (c.assets && c.assets.logos && c.assets.logos.coloredBackground) || c.logoUrl || '',
         })),
-      })).catch(e => reply({ ok: false, error: e.message }));
+      })).catch(e => reply({ ok: false, error: e.message, api: MpgApi.apiBase() }));
       return true;
     }
     if (!msg || msg.mpgauto !== 'run') return;
