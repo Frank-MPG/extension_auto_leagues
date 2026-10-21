@@ -74,9 +74,11 @@
     overlay.addEventListener('mousedown', e => { if (e.target === overlay) closePopup(); });
     overlay.addEventListener('wheel', e => { if (e.target === overlay) closePopup(); }, { passive: true });
     frame = document.createElement('iframe');
-    frame.src = chrome.runtime.getURL('popup/popup.html?embedded=1');
-    frame.style.cssText = `position:fixed;width:${POPUP_W}px;border:1px solid #2a2f38;border-radius:12px;background:#111318;` +
-      'box-shadow:0 18px 50px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.3);opacity:0;transform:scale(.97);transition:opacity .14s,transform .14s';
+    const theme = lastPageTheme = pageTheme();
+    frame.src = chrome.runtime.getURL(`popup/popup.html?embedded=1&theme=${theme}`);
+    frame.style.cssText = `position:fixed;width:${POPUP_W}px;border:1px solid;border-radius:12px;` +
+      'opacity:0;transform:scale(.97);transition:opacity .14s,transform .14s';
+    frameColors(theme);
     overlay.append(frame);
     document.documentElement.append(overlay);
     place();
@@ -89,6 +91,10 @@
     if (e.data.mpgauto === 'popupHeight' && e.data.h > 0) { contentH = Math.ceil(e.data.h) + 2; place(); }
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closePopup(); });
+  // Popup de la barre d'outils : demande le thème du site
+  chrome.runtime.onMessage.addListener((msg, _s, reply) => {
+    if (msg && msg.mpgauto === 'theme') reply({ theme: pageTheme() });
+  });
 
   // ---------- Icône (même taille que celle du bouton cloné ; couleur = currentColor, cf. syncTheme) ----------
   function iconLike(svgRef) {
@@ -114,7 +120,7 @@
     return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
   };
   // Fond réellement visible sous un élément : on empile les fonds (semi-)transparents jusqu'au premier opaque
-  function effectiveBg(el) {
+  function effectiveRgb(el) {
     const layers = [];
     for (let e = el; e; e = e.parentElement) {
       const c = parseColor(getComputedStyle(e).backgroundColor);
@@ -123,7 +129,38 @@
     const dark = matchMedia('(prefers-color-scheme: dark)').matches;
     let out = dark ? { r: 17, g: 19, b: 24 } : { r: 255, g: 255, b: 255 }; // rien d'opaque : fond du navigateur
     for (const c of layers.reverse()) out = { r: c.r * c.a + out.r * (1 - c.a), g: c.g * c.a + out.g * (1 - c.a), b: c.b * c.a + out.b * (1 - c.a) };
-    return `rgb(${Math.round(out.r)},${Math.round(out.g)},${Math.round(out.b)})`;
+    return out;
+  }
+  const effectiveBg = el => { const c = effectiveRgb(el); return `rgb(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)})`; };
+  const luminance = c => (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) / 255;
+  // Thème du site (pour la popup) : fond réellement affiché en quelques points de la page, hors popup
+  function pageTheme() {
+    const pts = [[innerWidth / 2, innerHeight / 2], [24, innerHeight - 24], [innerWidth - 24, 90]];
+    const lums = [];
+    for (const [x, y] of pts) {
+      const el = document.elementsFromPoint(x, y).find(e => !(overlay && overlay.contains(e)) && e !== document.documentElement);
+      if (el) lums.push(luminance(effectiveRgb(el)));
+    }
+    if (!lums.length) return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    lums.sort((a, b) => a - b);
+    return lums[Math.floor(lums.length / 2)] < 0.5 ? 'dark' : 'light';
+  }
+  // Popup ouverte (iframe) : lui transmet le thème, et adapte le cadre
+  let lastPageTheme = '';
+  function pushTheme(force) {
+    if (!frame) return;
+    const t = pageTheme();
+    if (!force && t === lastPageTheme) return;
+    lastPageTheme = t;
+    frameColors(t);
+    try { frame.contentWindow.postMessage({ mpgauto: 'theme', theme: t }, EXT_ORIGIN); } catch {}
+  }
+  function frameColors(t) {
+    if (!frame) return;
+    const light = t === 'light';
+    frame.style.borderColor = light ? '#d6dae2' : '#2a2f38';
+    frame.style.background = light ? '#f5f6f8' : '#111318';
+    frame.style.boxShadow = light ? '0 18px 50px rgba(20,24,40,.18),0 2px 8px rgba(20,24,40,.08)' : '0 18px 50px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.3)';
   }
   function iconColor(svg) {
     if (!svg) return '';
@@ -143,6 +180,7 @@
     mine.box.style.setProperty('--mpgauto-bg', bg);
     if (mine.label && text) mine.label.style.color = text;
     if (mine.svg && icon) mine.svg.style.color = icon;
+    pushTheme(false);
   }
 
   // ---------- Injection : clone du bouton « Réorganiser » (même gabarit que la page) ----------
@@ -198,10 +236,10 @@
   const schedule = needInject => {
     full = full || needInject;
     if (raf) return;
-    raf = requestAnimationFrame(() => { raf = 0; const f = full; full = false; f ? inject() : syncTheme(); });
+    raf = requestAnimationFrame(() => { raf = 0; const f = full; full = false; f ? inject() : syncTheme(); if (frame) pushTheme(false); });
   };
   new MutationObserver(muts => schedule(muts.some(m => m.type === 'childList')))
     .observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { lastTheme = ''; schedule(false); });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { lastTheme = ''; schedule(false); setTimeout(() => pushTheme(false), 300); });
   inject();
 })();

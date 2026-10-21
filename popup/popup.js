@@ -8,6 +8,24 @@ function closePopup() {
   if (EMBEDDED) parent.postMessage({ mpgauto: 'closePopup' }, PARENT_ORIGIN);
   else window.close();
 }
+
+// ---------- Thème clair / sombre : suit celui du site ----------
+// Ordre : ?theme= (iframe ouverte par le bouton) → dernier thème vu (évite un flash) → thème système ;
+// puis l'onglet MPG confirme (popup de la barre d'outils) ou le bouton prévient à chaque changement (iframe).
+const THEME_KEY = 'mpgautoTheme';
+function applyTheme(t) {
+  if (t !== 'light' && t !== 'dark') return;
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem(THEME_KEY, t); } catch {}
+}
+{
+  let t = new URLSearchParams(location.search).get('theme');
+  if (!t) try { t = localStorage.getItem(THEME_KEY); } catch {}
+  applyTheme(t || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
+}
+addEventListener('message', e => {
+  if (SITE_ORIGINS.includes(e.origin) && e.data && e.data.mpgauto === 'theme') applyTheme(e.data.theme);
+});
 // Ouverte depuis le bouton de Mon MPG : la fenêtre prend la hauteur naturelle de l'onglet « Créer »
 // (sans scroll) et la garde sur les autres onglets, dont les listes remplissent l'espace.
 let reportHeight = () => {};
@@ -654,7 +672,9 @@ chrome.storage.local.get(['vView', 'vFilters']).then(r => {
 // =====================================================================
 (async () => {
   mpgTab = await activeMpgTab();
-  const origin = mpgTab ? new URL(mpgTab.url).origin : EMBEDDED ? PARENT_ORIGIN : SITE_ORIGINS[0];
+  // Popup de la barre d'outils : thème lu dans l'onglet MPG (l'iframe, elle, le reçoit du bouton)
+  if (mpgTab && !EMBEDDED) chrome.tabs.sendMessage(mpgTab.id, { mpgauto: 'theme' }).then(r => r && applyTheme(r.theme)).catch(() => {});
+  const origin =mpgTab ? new URL(mpgTab.url).origin : EMBEDDED ? PARENT_ORIGIN : SITE_ORIGINS[0];
   IS_DEV = origin === 'https://dev.mpg.football';
   const host = new URL(origin).hostname;
   document.documentElement.classList.toggle('env-dev', IS_DEV);

@@ -65,6 +65,10 @@ De même, si un **custom user** est appliqué (extension « Custom user » ou pa
 
 Les joueurs invités, le numéro de ligue et le cache des championnats sont mémorisés **séparément** pour la dev (clés `*_dev`). Joueurs par défaut en dev : `user_12345001` à `user_12345005`. Le popup affiche un badge **DEV** sur dev.mpg.football.
 
+## Thème clair / sombre
+
+Le bouton « Tools » et la popup suivent le thème du site. Le bouton reprend les couleurs du bouton « Réorganiser » ; la popup reçoit le thème de la page (luminosité du fond affiché) : par l'URL de l'iframe puis par `postMessage` à chaque changement, ou en le demandant à l'onglet MPG (`{ mpgauto: 'theme' }`) quand elle est ouverte depuis la barre d'outils. Dernier thème mémorisé pour éviter un flash à l'ouverture.
+
 ## Installation
 
 `chrome://extensions` → Mode développeur → « Charger l'extension non empaquetée » → ce dossier. Recharge ensuite l'onglet mpg.football.
