@@ -1,4 +1,4 @@
-# MPG – Ligues de test auto
+# MPG – Ligues de test
 
 Extension Chrome (MV3). Un clic dans le popup :
 
