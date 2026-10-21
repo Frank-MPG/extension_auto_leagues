@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MPG – Ligues de test",
-  "version": "1.16.0",
+  "version": "1.16.1",
   "description": "Ligues de test MPG en un clic : création par championnat, invitations, lancement et mercatos automatiques (prod et dev).",
   "homepage_url": "https://github.com/frank-mpg/extension_auto_leagues",
   "icons": {

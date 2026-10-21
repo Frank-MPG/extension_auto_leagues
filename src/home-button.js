@@ -1,5 +1,7 @@
 // Bouton « Tools » sur la page Mon MPG (home), à côté de « Filtrer » / « Réorganiser ».
 // Effet arc-en-ciel ; au clic, la popup de l'extension s'ouvre juste sous le bouton (iframe ancrée).
+// Suit le thème clair / sombre du site : fond, texte et icône sont relus sur le bouton « Réorganiser »
+// d'origine et resynchronisés quand le thème change.
 (() => {
   if (window.top !== window) return;
   const ID = 'mpgauto-home-btn';
@@ -18,7 +20,7 @@
         position:relative;
         border-color:transparent!important;
         background:
-          linear-gradient(rgba(30,31,42,.94),rgba(30,31,42,.94)) padding-box,
+          linear-gradient(var(--mpgauto-bg,#1e1f2a),var(--mpgauto-bg,#1e1f2a)) padding-box,
           linear-gradient(90deg,#ff3b6b,#ff9f1c,#ffe14d,#3ee08f,#22c4ff,#7c6cff,#ff4fd8,#ff3b6b) 0 0/300% 100% border-box!important;
         animation:mpgauto-rainbow 3s linear infinite;
         box-shadow:0 0 0 0 rgba(124,108,255,0);
@@ -88,28 +90,67 @@
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closePopup(); });
 
-  // ---------- Icône (même taille / couleur que celle du bouton cloné) ----------
+  // ---------- Icône (même taille que celle du bouton cloné ; couleur = currentColor, cf. syncTheme) ----------
   function iconLike(svgRef) {
     const r = svgRef.getBoundingClientRect();
     const size = Math.round(r.width) || 14;
-    const color = [...svgRef.querySelectorAll('path,circle,rect,line,polyline')]
-      .map(p => [p.getAttribute('stroke'), p.getAttribute('fill')]).flat()
-      .find(c => c && c !== 'none' && c !== 'transparent') || '#fff';
     const w = document.createElement('span');
     w.innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" style="display:block;flex-shrink:0">` +
-      `<path d="M9 3h6M10 3v5.2L4.6 17.4A2.4 2.4 0 0 0 6.7 21h10.6a2.4 2.4 0 0 0 2.1-3.6L14 8.2V3" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` +
-      `<path d="M7.5 15h9" stroke="${color}" stroke-width="2" stroke-linecap="round"/></svg>`;
+      `<path d="M9 3h6M10 3v5.2L4.6 17.4A2.4 2.4 0 0 0 6.7 21h10.6a2.4 2.4 0 0 0 2.1-3.6L14 8.2V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` +
+      `<path d="M7.5 15h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
     const svg = w.firstElementChild;
     const cs = getComputedStyle(svgRef);
     svg.style.marginLeft = cs.marginLeft; svg.style.marginRight = cs.marginRight;
     return svg;
   }
 
+  // ---------- Thème : couleurs relues sur le bouton d'origine ----------
+  // orig = éléments du bouton « Réorganiser » (pilule, libellé, icône) ; mine = leurs équivalents dans notre clone
+  let orig = null, mine = null, lastTheme = '';
+  const parseColor = c => {
+    const m = /rgba?\(([^)]+)\)/.exec(c || '');
+    if (!m) return null;
+    const p = m[1].split(/[\s,/]+/).filter(Boolean).map(parseFloat);
+    return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+  };
+  // Fond réellement visible sous un élément : on empile les fonds (semi-)transparents jusqu'au premier opaque
+  function effectiveBg(el) {
+    const layers = [];
+    for (let e = el; e; e = e.parentElement) {
+      const c = parseColor(getComputedStyle(e).backgroundColor);
+      if (c && c.a > 0) { layers.push(c); if (c.a >= 1) break; }
+    }
+    const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+    let out = dark ? { r: 17, g: 19, b: 24 } : { r: 255, g: 255, b: 255 }; // rien d'opaque : fond du navigateur
+    for (const c of layers.reverse()) out = { r: c.r * c.a + out.r * (1 - c.a), g: c.g * c.a + out.g * (1 - c.a), b: c.b * c.a + out.b * (1 - c.a) };
+    return `rgb(${Math.round(out.r)},${Math.round(out.g)},${Math.round(out.b)})`;
+  }
+  function iconColor(svg) {
+    if (!svg) return '';
+    const attr = [...svg.querySelectorAll('path,circle,rect,line,polyline')]
+      .map(p => [p.getAttribute('stroke'), p.getAttribute('fill')]).flat()
+      .find(c => c && c !== 'none' && c !== 'transparent' && c !== 'currentColor');
+    return attr || getComputedStyle(svg).color;
+  }
+  function syncTheme() {
+    if (!orig || !mine || !orig.chip.isConnected || !mine.btn.isConnected) return;
+    const bg = effectiveBg(orig.box);
+    const text = orig.label ? getComputedStyle(orig.label).color : '';
+    const icon = iconColor(orig.svg) || text;
+    const theme = [bg, text, icon].join('|');
+    if (theme === lastTheme) return;
+    lastTheme = theme;
+    mine.box.style.setProperty('--mpgauto-bg', bg);
+    if (mine.label && text) mine.label.style.color = text;
+    if (mine.svg && icon) mine.svg.style.color = icon;
+  }
+
   // ---------- Injection : clone du bouton « Réorganiser » (même gabarit que la page) ----------
   function inject() {
     const existing = document.getElementById(ID);
     if (!isHome()) { existing?.remove(); closePopup(); return; }
-    if (existing && existing.isConnected) return;
+    if (existing && existing.isConnected && orig && orig.chip.isConnected) { syncTheme(); return; }
+    existing?.remove(); // le site a re-rendu la rangée (ex. changement de thème) : on reclone
     const a = leafWithText(document.body, 'Filtrer'), b = leafWithText(document.body, 'Réorganiser');
     if (!a || !b) return;
     // Rangée = 1er ancêtre commun de « Filtrer » et « Réorganiser » ; modèle = son enfant qui contient « Réorganiser »
@@ -128,15 +169,20 @@
     btn.tabIndex = 0;
     btn.title = 'Créer des ligues, faire les mercatos';
     btn.style.cursor = 'pointer';
-    const label = [...btn.querySelectorAll('div,span')].find(e => e.children.length === 0 && e.textContent.trim());
+    const leaf = e => e.children.length === 0 && e.textContent.trim();
+    const label = [...btn.querySelectorAll('div,span')].find(leaf);
     if (label) label.textContent = 'Tools';
     const svgRef = chip.querySelector('svg'), svgClone = btn.querySelector('svg');
-    if (svgRef && svgClone) svgClone.replaceWith(iconLike(svgRef));
+    const svgMine = svgRef && svgClone ? iconLike(svgRef) : null;
+    if (svgMine) svgClone.replaceWith(svgMine);
     // L'élément qui porte la bordure « pilule » du site reçoit l'effet arc-en-ciel
     const origEls = [chip, ...chip.querySelectorAll('*')], cloneEls = [btn, ...btn.querySelectorAll('*')];
     const idx = origEls.findIndex(e => parseFloat(getComputedStyle(e).borderTopWidth) > 0);
     const box = (idx >= 0 && cloneEls[idx]) || btn.firstElementChild || btn;
     box.classList.add('mpgauto-rainbow');
+    orig = { chip, box: (idx >= 0 && origEls[idx]) || chip.firstElementChild || chip, label: [...chip.querySelectorAll('div,span')].find(leaf), svg: svgRef };
+    mine = { btn, box, label, svg: svgMine };
+    lastTheme = '';
 
     const go = e => { e.preventDefault(); e.stopPropagation(); openPopup(btn); };
     btn.addEventListener('click', go);
@@ -144,10 +190,18 @@
     btn.addEventListener('mousedown', e => e.stopPropagation());
     btn.addEventListener('pointerdown', e => e.stopPropagation());
     row.append(btn);
+    syncTheme();
   }
 
-  let raf = 0;
-  new MutationObserver(() => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; inject(); }); })
-    .observe(document.documentElement, { childList: true, subtree: true });
+  // DOM modifié → (ré)injection ; classes / styles modifiés (changement de thème) → resynchro des couleurs
+  let raf = 0, full = false;
+  const schedule = needInject => {
+    full = full || needInject;
+    if (raf) return;
+    raf = requestAnimationFrame(() => { raf = 0; const f = full; full = false; f ? inject() : syncTheme(); });
+  };
+  new MutationObserver(muts => schedule(muts.some(m => m.type === 'childList')))
+    .observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { lastTheme = ''; schedule(false); });
   inject();
 })();
