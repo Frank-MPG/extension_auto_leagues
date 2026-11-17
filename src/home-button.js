@@ -189,8 +189,11 @@
   function fallbackColors(el) {
     const dark = pageTheme() === 'dark';
     const box = el.firstElementChild;
-    box.style.setProperty('--mpgauto-bg', dark ? '#1e1f2a' : '#ffffff');
-    box.style.color = dark ? '#ffffff' : '#1a1d26';
+    if (!box) return;
+    // N'écrit que si ça change (évite des mutations « style » inutiles à chaque passage de l'observer)
+    const bg = dark ? '#1e1f2a' : '#ffffff', fg = dark ? '#ffffff' : '#1a1d26';
+    if (box.style.getPropertyValue('--mpgauto-bg') !== bg) box.style.setProperty('--mpgauto-bg', bg);
+    if (box.dataset.fg !== fg) { box.dataset.fg = fg; box.style.color = fg; }
   }
   function injectFallback() {
     injectStyle();
@@ -202,10 +205,12 @@
     btn.setAttribute('aria-haspopup', 'dialog');
     btn.tabIndex = 0;
     btn.title = 'Créer des ligues, faire les mercatos';
+    // Dans le titre : marges verticales négatives pour que la pilule (36 px) n'agrandisse pas la ligne (28 px) ;
+    // police / casse / espacement / retour à la ligne neutralisés (sinon hérités du h5)
     btn.style.cssText = (heading
-      ? 'display:inline-flex;vertical-align:middle;margin-left:12px;'
+      ? 'display:inline-flex;vertical-align:middle;margin:-4px 0 -4px 12px;'
       : 'position:fixed;right:20px;bottom:20px;z-index:2147483645;') +
-      'cursor:pointer;font:600 14px/1 system-ui,sans-serif;text-transform:none;letter-spacing:normal';
+      'cursor:pointer;font:600 14px/1 system-ui,sans-serif;text-transform:none;letter-spacing:normal;white-space:nowrap;text-align:left';
     const box = document.createElement('div');
     box.className = 'mpgauto-rainbow';
     box.style.cssText = 'display:flex;align-items:center;gap:6px;height:36px;padding:0 14px;border:1px solid transparent;border-radius:999px;box-sizing:border-box';
@@ -221,11 +226,14 @@
     (heading || document.documentElement).append(btn);
     fallbackColors(btn);
   }
-  // Titre « Mes compétitions » de la home (le bouton se place à côté)
+  // Titre « Mes compétitions - N » de la home (un <h5 role="heading"> sur le site ; le bouton se place dedans).
+  // Le texte est lu sur les seuls nœuds texte : une fois notre bouton ajouté, le titre n'est plus une « feuille »
+  // et son textContent contient « Tools ».
   const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+  const ownText = e => [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.nodeValue).join('');
   function findHeading() {
-    return [...document.body.querySelectorAll('div,span,h1,h2,h3')]
-      .find(e => e.children.length === 0 && /^mes competitions(\s*-\s*\d+)?$/.test(norm(e.textContent)));
+    return [...document.body.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"],div,span')]
+      .find(e => [...e.children].every(c => c.id === ID) && /^mes competitions(\s*-\s*\d+)?$/.test(norm(ownText(e))));
   }
 
   // ---------- Injection : clone du bouton « Réorganiser » (même gabarit que la page) ----------
