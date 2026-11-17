@@ -196,12 +196,16 @@
     injectStyle();
     const btn = document.createElement('div');
     btn.id = ID;
-    btn.dataset.fallback = '1';
+    const heading = findHeading();
+    btn.dataset.fallback = heading ? 'heading' : 'float';
     btn.setAttribute('role', 'button');
     btn.setAttribute('aria-haspopup', 'dialog');
     btn.tabIndex = 0;
     btn.title = 'Créer des ligues, faire les mercatos';
-    btn.style.cssText = 'position:fixed;right:20px;bottom:20px;z-index:2147483645;cursor:pointer;font:600 14px/1 system-ui,sans-serif';
+    btn.style.cssText = (heading
+      ? 'display:inline-flex;vertical-align:middle;margin-left:12px;'
+      : 'position:fixed;right:20px;bottom:20px;z-index:2147483645;') +
+      'cursor:pointer;font:600 14px/1 system-ui,sans-serif;text-transform:none;letter-spacing:normal';
     const box = document.createElement('div');
     box.className = 'mpgauto-rainbow';
     box.style.cssText = 'display:flex;align-items:center;gap:6px;height:36px;padding:0 14px;border:1px solid transparent;border-radius:999px;box-sizing:border-box';
@@ -214,8 +218,14 @@
     const go = e => { e.preventDefault(); e.stopPropagation(); openPopup(btn); };
     btn.addEventListener('click', go);
     btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') go(e); });
-    document.documentElement.append(btn);
+    (heading || document.documentElement).append(btn);
     fallbackColors(btn);
+  }
+  // Titre « Mes compétitions » de la home (le bouton se place à côté)
+  const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+  function findHeading() {
+    return [...document.body.querySelectorAll('div,span,h1,h2,h3')]
+      .find(e => e.children.length === 0 && norm(e.textContent) === 'mes competitions');
   }
 
   // ---------- Injection : clone du bouton « Réorganiser » (même gabarit que la page) ----------
@@ -225,7 +235,10 @@
     if (existing && existing.isConnected && orig && orig.chip.isConnected) { syncTheme(); return; }
     const a = leafWithText(document.body, 'Filtrer'), b = leafWithText(document.body, 'Réorganiser');
     if (!a || !b) { // moins de 4 contests : le site n'affiche ni « Filtrer » ni « Réorganiser » → bouton flottant
-      if (existing && existing.isConnected && existing.dataset.fallback) { fallbackColors(existing); return; }
+      // Déjà en place (à côté du titre, ou flottant tant que le titre n'est pas rendu)
+      if (existing && existing.isConnected && existing.dataset.fallback &&
+          !(existing.dataset.fallback === 'float' && findHeading())) { fallbackColors(existing); return; }
+      if (existing === anchorEl) closePopup();
       existing?.remove();
       orig = mine = null;
       injectFallback();
