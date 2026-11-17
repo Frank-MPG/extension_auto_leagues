@@ -227,13 +227,33 @@
     fallbackColors(btn);
   }
   // Titre « Mes compétitions - N » de la home (un <h5 role="heading"> sur le site ; le bouton se place dedans).
-  // Le texte est lu sur les seuls nœuds texte : une fois notre bouton ajouté, le titre n'est plus une « feuille »
-  // et son textContent contient « Tools ».
-  const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
-  const ownText = e => [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.nodeValue).join('');
+  // Texte lu sans notre bouton (sinon il contient « Tools ») ; le compteur peut être dans un enfant
+  // (« Mes compétitions <span>2</span> », « (2) », « · 2 »…). On garde l'élément le plus profond qui correspond.
+  const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const textOf = e => {
+    let s = '';
+    const w = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
+    for (let n; (n = w.nextNode());) if (!n.parentElement?.closest('#' + ID)) s += n.nodeValue;
+    return s;
+  };
+  const HEADING_RE = /^mes competitions\s*(?:[-–—·:]\s*)?\(?\d*\)?$/;
   function findHeading() {
-    return [...document.body.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"],div,span')]
-      .find(e => [...e.children].every(c => c.id === ID) && /^mes competitions(\s*-\s*\d+)?$/.test(norm(ownText(e))));
+    // Part des nœuds texte « …mes compétitions… » et remonte (4 niveaux max) : 1er élément qui correspond,
+    // remplacé par un titre (h*, role=heading) plus haut s'il correspond aussi
+    const isTitle = e => /^H[1-6]$/.test(e.tagName) || e.getAttribute('role') === 'heading';
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT,
+      { acceptNode: n => /mes comp/i.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP });
+    for (let n; (n = w.nextNode());) {
+      if (n.parentElement?.closest('#' + ID)) continue;
+      let best = null;
+      for (let e = n.parentElement, i = 0; e && e !== document.body && i < 4; e = e.parentElement, i++) {
+        if (!HEADING_RE.test(norm(textOf(e)))) { if (best) break; continue; }
+        if (!best || isTitle(e)) best = e;
+        if (isTitle(e)) break;
+      }
+      if (best) return best;
+    }
+    return null;
   }
 
   // ---------- Injection : clone du bouton « Réorganiser » (même gabarit que la page) ----------
