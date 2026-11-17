@@ -105,8 +105,10 @@
       `<path d="M9 3h6M10 3v5.2L4.6 17.4A2.4 2.4 0 0 0 6.7 21h10.6a2.4 2.4 0 0 0 2.1-3.6L14 8.2V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` +
       `<path d="M7.5 15h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
     const svg = w.firstElementChild;
-    const cs = getComputedStyle(svgRef);
-    svg.style.marginLeft = cs.marginLeft; svg.style.marginRight = cs.marginRight;
+    if (svgRef instanceof Element) {
+      const cs = getComputedStyle(svgRef);
+      svg.style.marginLeft = cs.marginLeft; svg.style.marginRight = cs.marginRight;
+    }
     return svg;
   }
 
@@ -183,14 +185,53 @@
     pushTheme(false);
   }
 
+  // ---------- Bouton flottant (repli quand « Filtrer » / « Réorganiser » sont absents) ----------
+  function fallbackColors(el) {
+    const dark = pageTheme() === 'dark';
+    const box = el.firstElementChild;
+    box.style.setProperty('--mpgauto-bg', dark ? '#1e1f2a' : '#ffffff');
+    box.style.color = dark ? '#ffffff' : '#1a1d26';
+  }
+  function injectFallback() {
+    injectStyle();
+    const btn = document.createElement('div');
+    btn.id = ID;
+    btn.dataset.fallback = '1';
+    btn.setAttribute('role', 'button');
+    btn.setAttribute('aria-haspopup', 'dialog');
+    btn.tabIndex = 0;
+    btn.title = 'Créer des ligues, faire les mercatos';
+    btn.style.cssText = 'position:fixed;right:20px;bottom:20px;z-index:2147483645;cursor:pointer;font:600 14px/1 system-ui,sans-serif';
+    const box = document.createElement('div');
+    box.className = 'mpgauto-rainbow';
+    box.style.cssText = 'display:flex;align-items:center;gap:6px;height:36px;padding:0 14px;border:1px solid transparent;border-radius:999px;box-sizing:border-box';
+    const svg = iconLike({ getBoundingClientRect: () => ({ width: 16 }) });
+    svg.style.marginLeft = svg.style.marginRight = '0';
+    const label = document.createElement('span');
+    label.textContent = 'Tools';
+    box.append(svg, label);
+    btn.append(box);
+    const go = e => { e.preventDefault(); e.stopPropagation(); openPopup(btn); };
+    btn.addEventListener('click', go);
+    btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') go(e); });
+    document.documentElement.append(btn);
+    fallbackColors(btn);
+  }
+
   // ---------- Injection : clone du bouton « Réorganiser » (même gabarit que la page) ----------
   function inject() {
     const existing = document.getElementById(ID);
     if (!isHome()) { existing?.remove(); closePopup(); return; }
     if (existing && existing.isConnected && orig && orig.chip.isConnected) { syncTheme(); return; }
-    existing?.remove(); // le site a re-rendu la rangée (ex. changement de thème) : on reclone
     const a = leafWithText(document.body, 'Filtrer'), b = leafWithText(document.body, 'Réorganiser');
-    if (!a || !b) return;
+    if (!a || !b) { // moins de 4 contests : le site n'affiche ni « Filtrer » ni « Réorganiser » → bouton flottant
+      if (existing && existing.isConnected && existing.dataset.fallback) { fallbackColors(existing); return; }
+      existing?.remove();
+      orig = mine = null;
+      injectFallback();
+      return;
+    }
+    existing?.remove(); // le site a re-rendu la rangée (ex. changement de thème) : on reclone
     // Rangée = 1er ancêtre commun de « Filtrer » et « Réorganiser » ; modèle = son enfant qui contient « Réorganiser »
     const ancestors = new Set(); for (let x = a; x; x = x.parentElement) ancestors.add(x);
     let row = b; while (row && !ancestors.has(row)) row = row.parentElement;
