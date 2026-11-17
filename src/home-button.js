@@ -225,7 +225,7 @@
   const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
   function findHeading() {
     return [...document.body.querySelectorAll('div,span,h1,h2,h3')]
-      .find(e => e.children.length === 0 && norm(e.textContent) === 'mes competitions');
+      .find(e => e.children.length === 0 && /^mes competitions(\s*-\s*\d+)?$/.test(norm(e.textContent)));
   }
 
   // ---------- Injection : clone du bouton « Réorganiser » (même gabarit que la page) ----------
